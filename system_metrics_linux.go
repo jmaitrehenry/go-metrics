@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -15,7 +15,7 @@ const (
 
 func GetCPUUsage() (CPUUsage, error) {
 	usage := CPUUsage{}
-	contents, err := ioutil.ReadFile("/proc/stat")
+	contents, err := os.ReadFile("/proc/stat")
 	if err != nil {
 		return usage, err
 	}
@@ -42,7 +42,7 @@ func GetCPUUsage() (CPUUsage, error) {
 
 func GetLoadAverage() (LoadAverage, error) {
 	loadAverage := LoadAverage{}
-	line, err := ioutil.ReadFile("/proc/loadavg")
+	line, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
 		return loadAverage, err
 	}
@@ -67,7 +67,7 @@ func GetMemoryUsage() (MemUsage, error) {
 		"Cached":       &cached,
 	}
 
-	contents, err := ioutil.ReadFile("/proc/meminfo")
+	contents, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
 		return memUsage, err
 	}
