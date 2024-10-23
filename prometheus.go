@@ -10,6 +10,7 @@ type MetricInfo struct {
 	Type              prometheus.ValueType
 	HasDynamicsLabels bool
 }
+
 type metrics map[string]MetricInfo
 
 func NewMetric(namespace, subsystem, metricName string, docString string, t prometheus.ValueType, constLabels prometheus.Labels, varLabels []string) MetricInfo {
@@ -159,7 +160,6 @@ func (c *PrometheusMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 					ch <- prometheus.MustNewConstMetric(metric.Desc, metric.Type, float64(v.Value))
 				}
 			}
-
 		}
 	}
 }
