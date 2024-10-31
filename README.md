@@ -15,54 +15,95 @@ import (
 
 	"log"
 	"net/http"
+	"time"
 )
 
-var requestCounter prometheus.Counter
-
 func main() {
-	c := gometrics.Collector{
-		Namespace: "myproject",
-		Subsystem: "myapp",
-		EnableCPU: true,
-		EnableMem: true,
-	}
+	metrics, promMetrics := NewAppCollector()
+	prometheus.MustRegister(promMetrics)
 	
-	requestCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "myproject",
-		Subsystem: "myapp",
-		Name:      "requests_count",
-	})
-	extraCollector := NewCollector("myproject", "myapp")
+	// every x time, we refresh our internal gauge.
+	go func() {
+		ticker := time.Tick(1 * time.Second)
+		for {
+			select {
+			case <-ticker:
+				metrics.Collect(m)
+			}
+		}
+	}()
 	
-	prometheus.MustRegister(gometrics.NewPrometheusMetrics(c, extraCollector))
 	http.Handle("/metrics", promhttp.Handler())
 	
 	log.Printf("Starting metric server on %s\n", ":9090")
 	http.ListenAndServe(":9090", nil)
 }
 
+func NewAppCollector() (*AppMetrics, *gometrics.PrometheusMetricsCollector) {
+	ns := "something"
+	system := "api"
 
-type Collector struct {
-	metrics map[string]gometrics.MetricInfo
+	metrics := NewAppMetrics(ns, system)
+	c := gometrics.Collector{
+		Namespace: ns,
+		Subsystem: system,
+		EnableCPU: true,
+		EnableMem: true,
+	}
+
+	return metrics, gometrics.NewPrometheusMetrics(c, metrics)
 }
 
-func NewCollector(namespace, subsystem string) Collector {
-	return Collector{
+
+type AppMetrics struct {
+	RequestCount prometheus.Gauge
+	ResponseCodeCount *prometheus.GaugeVec
+	
+	metrics map[string]gometrics.MetricInfo
+	labels  []string
+}
+
+// New AppMetrics initialize the metrics and also create metric definitions
+func NewAppMetrics(ns, subsystem string) *AppMetrics {
+	return &AppMetrics{
+		RequestCount:  prometheus.NewGauge(prometheus.GaugeOpts{
+            Namespace: ns,
+            Subsystem: subsystem,
+            Name:      "requests_count",
+        }),
+        ResponseCodeCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: subsystem,
+			Name:      "response_code_count",
+		}, []string{"code"}),
 		metrics: map[string]gometrics.MetricInfo{
-			"requests_count": gometrics.NewMetric(namespace, subsystem, "requests_count", "", prometheus.CounterValue, nil, []string{}),
+			"requests_count": gometrics.NewMetric(ns, subsystem, "requests_count", "", prometheus.CounterValue, nil, []string{}),
+			"response_code_count": gometrics.NewMetric(ns, subsystem, "response_code_count", "", prometheus.GaugeValue, nil, []string{"code"}),
 		},
 	}
 }
 
-func (c Collector) GetMetrics() map[string]collector.MetricInfo {
+// GetMetrics is an internal function use by gometrics
+func (c AppMetrics) GetMetrics() map[string]gometrics.MetricInfo {
 	return c.metrics
 }
 
-func (c Collector) CollectStats() map[string]map[string]collector.MetricValue {
-	stats := make(map[string]map[string]collector.MetricValue)
+// CollectStats is call by the metric endpoint and it's use by the prometheus package to show the actual metrics with values
+func (c AppMetrics) CollectStats() map[string]map[string]gometrics.MetricValue {
+	stats := make(map[string]map[string]gometrics.MetricValue)
 
-	stats["requests_count"] = map[string]collector.MetricValue{"default": collector.MetricValue{Collector: requestCounter.Collect}}
-
+	stats["requests_count"] = map[string]gometrics.MetricValue{"default": gometrics.MetricValue{Collector: requestCounter.Collect}}
+	for _, label := range c.labels {
+		stats["response_code_count"][label] = gometrics.MetricValue{Collector: c.ResponseCodeCount.WithLabelValues(label).Collect}
+	}
 	return stats
+}
+
+// Collect will update the internal metric with the new value
+func (m *AppMetrics) Collect() {
+	m.RequestCount.Set(float64(64))
+	m.labels = []string{"200", "500"}
+	m.ResponseCodeCount.WithLabelValues("200").Set(float64(3))
+	m.ResponseCodeCount.WithLabelValues("500").Set(float64(56))
 }
 ```

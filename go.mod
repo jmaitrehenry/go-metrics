@@ -1,4 +1,4 @@
-module gometrics
+module github.com/jmaitrehenry/gometrics
 
 go 1.23.1
 
