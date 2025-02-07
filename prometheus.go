@@ -2,6 +2,7 @@ package gometrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"os"
 	"sync"
 )
 
@@ -46,11 +47,14 @@ type PrometheusMetricsCollector struct {
 }
 
 func NewPrometheusMetrics(c Collector, extraCollector ExtraCollector) *PrometheusMetricsCollector {
+	hostname, _ := os.Hostname()
+
 	runtimeInfo := c.collectRuntimeInfo()
 	labels := prometheus.Labels{
 		"go_arch":    runtimeInfo.Goarch,
 		"go_os":      runtimeInfo.Goos,
 		"go_version": runtimeInfo.Version,
+		"hostname":   hostname,
 	}
 	prometheusMetrics := &PrometheusMetricsCollector{
 		collector: c,
